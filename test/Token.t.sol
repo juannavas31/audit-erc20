@@ -45,4 +45,28 @@ contract MyTokenTest is Test {
         assertEq(mockToken.totalSupply(), _largeValue - _smallValue);
     }
 
+    function testFuzz_approve(address _spender, uint256 _value) public {
+        // arrange
+        address owner = address(this);
+        mockToken.mint(owner, _value);
+        vm.assume(address(_spender) != address(0x0));
+
+        // act
+        mockToken.approve(_spender, _value);
+
+        // assert
+        assertEq(mockToken.allowance(owner, _spender), _value, "Allowance should equal _value");
+    }
+
+    function test_approve_spender_cannot_be_zero_address() public {
+        // arrange
+        address spender = address(0x0);
+        address owner = msg.sender;
+        mockToken.mint(owner, 100); 
+
+        // act & assert
+        vm.expectRevert();
+        mockToken.approve(spender, 100);
+    }
+
 }
