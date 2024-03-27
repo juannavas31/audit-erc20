@@ -7,6 +7,8 @@ import {Test, console} from "forge-std/Test.sol";
 
 contract MyTokenTest is Test {
     MockToken internal mockToken;
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    event Approval(address indexed owner, address indexed spender, uint256 value);
 
     function setUp() public virtual {
         mockToken = new MockToken("mytoken", "MT", 0);
@@ -23,6 +25,9 @@ contract MyTokenTest is Test {
     }
 
     function testFuzz_mint(address _account, uint256 _value) public {
+        // arrange
+        vm.assume(_account != address(0));
+
         // act
         mockToken.mint(_account, _value);
 
@@ -32,9 +37,11 @@ contract MyTokenTest is Test {
     }
 
     function testFuzz_burn(address _account, uint256 _largeValue, uint256 _smallValue) public {
+        // arrange
+        vm.assume(_account != address(0));
+
         if (_largeValue < _smallValue) return;
 
-        // arrange
         mockToken.mint(_account, _largeValue);
 
         // act
@@ -50,9 +57,11 @@ contract MyTokenTest is Test {
         address owner = address(this);
         mockToken.mint(owner, _value);
         vm.assume(address(_spender) != address(0x0));
+        vm.expectEmit(true, true, false, true);
+        emit Approval(owner, _spender, _value);
 
         // act
-        mockToken.approve(_spender, _value);
+        assertTrue(mockToken.approve(_spender, _value));
 
         // assert
         assertEq(mockToken.allowance(owner, _spender), _value, "Allowance should equal _value");
@@ -64,9 +73,45 @@ contract MyTokenTest is Test {
         address owner = msg.sender;
         mockToken.mint(owner, 100); 
 
-        // act & assert
+        // act & assertº
         vm.expectRevert();
         mockToken.approve(spender, 100);
     }
 
+    function testFuzz_transfer(address _receiver, uint256 _value) public {
+        // arrange
+        vm.assume(_receiver != address(0));
+        address owner = address(this);
+        uint256 initialTotalSupply = mockToken.totalSupply();
+        mockToken.mint(owner, _value);
+        vm.expectEmit(true, true, false, true);
+        emit Transfer(owner, _receiver, _value);
+
+        // act 
+        assertTrue(mockToken.transfer(_receiver, _value));
+
+        // assert
+        assertEq(mockToken.totalSupply(), initialTotalSupply + _value, "Incorrect total supply");
+        assertEq(mockToken.balanceOf(_receiver), _value, "Incorrect receiver balance");
+    }
+
+    function testFuzz_transferFrom(address _spender, uint256 _value) public {
+        // arrange
+        address owner = address(this);
+        address _receiver = address(0x00000000000000000000000000000000000006C5);
+        vm.assume(_spender != address(0));
+        vm.assume(owner != address(0));
+
+        mockToken.mint(owner, _value);
+        mockToken.approve(_spender, _value);
+
+        // act
+        vm.prank(_spender);
+        assertTrue(mockToken.transferFrom(owner, _receiver, _value));
+
+        // assert
+        assertEq(mockToken.balanceOf(_receiver), _value, "Incorrect balance of receiver");
+        assertEq(mockToken.balanceOf(_spender), 0, "Incorrect balance of spender");
+        assertEq(mockToken.balanceOf(owner), 0, "Incorrect balance of owner");
+    }
 }
